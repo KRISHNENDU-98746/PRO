@@ -1,0 +1,5 @@
+{
+  "name": "AI App Builder",
+  "description": "An application that allows you to build simple AI-powered web apps by describing them in plain English. The AI generates the app's structure and functionality on the fly.",
+  "requestFramePermissions": []
+}

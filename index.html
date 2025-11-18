@@ -1,0 +1,65 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI App Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'brand-bg': '#101014',
+              'brand-surface': '#1a1a20',
+              'brand-border': '#2a2a32',
+              'brand-primary': '#8a5cf6',
+              'brand-secondary': '#4f46e5',
+              'brand-glow': '#3b82f6',
+              'brand-text-primary': '#f0f0f5',
+              'brand-text-secondary': '#a0a0b0',
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      body {
+        background-color: #0d0d12;
+        background-image:
+          radial-gradient(circle at 25% 25%, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.03) 1px, transparent 1px, transparent 100%),
+          radial-gradient(circle at 75% 75%, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.03) 1px, transparent 1px, transparent 100%);
+        background-size: 50px 50px;
+        background-attachment: fixed;
+      }
+      .bg-gradient-overlay {
+        background: radial-gradient(ellipse at bottom, rgba(49, 21, 107, 0.6) 0%, rgba(16, 16, 20, 0) 70%);
+      }
+      .bg-stars {
+        background-image:
+          radial-gradient(white, rgba(255,255,255,.2) 2px, transparent 40px),
+          radial-gradient(white, rgba(255,255,255,.15) 1px, transparent 30px),
+          radial-gradient(white, rgba(255,255,255,.1) 2px, transparent 40px),
+          radial-gradient(rgba(255,255,255,.4), rgba(255,255,255,.1) 2px, transparent 30px);
+        background-size: 550px 550px, 350px 350px, 250px 250px, 150px 150px;
+        background-position: 0 0, 40px 60px, 130px 270px, 70px 100px;
+        background-attachment: fixed;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.1"
+  }
+}
+</script>
+</head>
+  <body class="bg-brand-bg text-brand-text-primary">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
