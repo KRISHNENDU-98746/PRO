@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { AppConfig, ActionType } from '../types';
 
@@ -8,9 +7,30 @@ if (!process.env.API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+export interface GenerationResult {
+  explanation: string;
+  filesChanged: string[];
+  appConfig: AppConfig;
+}
+
 const appConfigSchema = {
   type: Type.OBJECT,
   properties: {
+    theme: {
+        type: Type.OBJECT,
+        description: "The visual theme of the application.",
+        properties: {
+            primaryColor: { type: Type.STRING, description: "Primary color for buttons and highlights (hex code)." },
+            secondaryColor: { type: Type.STRING, description: "Secondary color for accents (hex code).", nullable: true },
+            backgroundColor: { type: Type.STRING, description: "Main background color for the app screen (hex code)." },
+            surfaceColor: { type: Type.STRING, description: "Color for card backgrounds or surfaces (hex code)." },
+            textColor: { type: Type.STRING, description: "Primary text color (hex code)." },
+            secondaryTextColor: { type: Type.STRING, description: "Secondary text color for labels, placeholders (hex code)." },
+            borderRadius: { type: Type.STRING, description: "The corner radius for elements like buttons and inputs (e.g., '8px', '12px')." },
+            fontFamily: { type: Type.STRING, description: "The CSS font-family string. Use a font from Google Fonts like 'Inter, sans-serif' or 'Roboto, sans-serif'." },
+        },
+        required: ['primaryColor', 'backgroundColor', 'surfaceColor', 'textColor', 'secondaryTextColor', 'borderRadius', 'fontFamily']
+    },
     components: {
       type: Type.ARRAY,
       description: "An array of UI components that make up the application.",
@@ -69,6 +89,12 @@ const appConfigSchema = {
             enum: ['GENERATE_TEXT', 'GENERATE_IMAGE'],
             nullable: true,
           },
+          variant: {
+              type: Type.STRING,
+              description: "The visual style of the button.",
+              enum: ['primary', 'secondary', 'outline'],
+              nullable: true,
+          },
           triggers: {
             type: Type.ARRAY,
             description: "For BUTTONs, an array of 'id's of INPUT_TEXT components this button uses as input.",
@@ -85,34 +111,65 @@ const appConfigSchema = {
       },
     },
   },
-  required: ["components"],
+  required: ["theme", "components"],
+};
+
+const generationResultSchema = {
+    type: Type.OBJECT,
+    properties: {
+      explanation: {
+        type: Type.STRING,
+        description: "A friendly, conversational explanation of the changes being made or the app being generated. This will be shown to the user in the chat.",
+      },
+      filesChanged: {
+        type: Type.ARRAY,
+        description: "A list of files that were conceptually changed. For this tool, it should always be ['AppConfig JSON'].",
+        items: { type: Type.STRING },
+      },
+      appConfig: appConfigSchema,
+    },
+    required: ["explanation", "filesChanged", "appConfig"],
 };
 
 
-export const generateAppConfig = async (prompt: string): Promise<AppConfig> => {
-  const systemInstruction = `You are a world-class AI application architect. Your task is to generate a JSON configuration for a web application based on the user's prompt. The configuration must strictly adhere to the provided JSON schema.
-- The \`components\` array should be ordered logically for the user interface.
-- Always include a \`TITLE\` and a \`DESCRIPTION\` component at the start.
-- For each component, only include the properties relevant to its \`type\`. For example, a \`TITLE\` component should only have \`id\`, \`type\`, and \`content\`. An \`INPUT_TEXT\` component should not have an \`action\` property.
-- For \`INPUT_TEXT\` components, you can add validation rules. For example, if the user asks for a tweet generator, you could add \`"validation": {"required": true, "maxLength": 280}\` to the topic input.
-- \`id\` values should be descriptive and use snake_case, e.g., \`main_title\`, \`topic_input\`, \`generate_button\`.
-- The \`triggers\` array for a \`BUTTON\` must contain the \`id\`s of all \`INPUT_TEXT\` components whose values are needed for the action.
-- The \`displaysFor\` property for an \`OUTPUT_\` component must be the \`id\` of the \`BUTTON\` that triggers its generation.`;
+interface GenerationParams {
+  prompt: string;
+  config?: AppConfig | null;
+  history?: { role: 'user' | 'assistant', content: any }[];
+}
+
+export const generateOrRefineAppConfig = async ({ prompt, config = null, history = [] }: GenerationParams): Promise<GenerationResult> => {
+  const isRefining = !!config;
+
+  const systemInstruction = isRefining
+    ? `You are a world-class AI application architect and a senior UI/UX designer. The user wants to modify an existing application. Your response MUST be a JSON object that strictly adheres to the schema.
+1.  **Create an \`explanation\`:** In a friendly and conversational tone, explain what you are about to change and why, based on the user's request. For example: "Okay, I'll change the primary color to a nice shade of blue. This should give the app a calmer feel. I'll be updating the theme settings."
+2.  **List \`filesChanged\`:** This will always be an array containing a single string: \`['AppConfig JSON']\`.
+3.  **Provide the updated \`appConfig\`:** Return the complete, updated JSON configuration for the application in the \`appConfig\` field. Modify either the \`components\` array for functional changes or the \`theme\` object for UI/UX changes.`
+    : `You are a world-class AI application architect and a senior UI/UX designer. Your task is to generate a JSON configuration for a new web application based on the user's prompt. Your response MUST be a JSON object that strictly adheres to the schema.
+1.  **Create an \`explanation\`:** In a friendly tone, introduce the app you've designed. For example: "Great! I've designed a 'Baby Name Swiper' app for you. It has a clean and modern look. Here's the first version."
+2.  **List \`filesChanged\`:** This will be \`['AppConfig JSON']\`.
+3.  **Provide the initial \`appConfig\`:** Return the complete JSON configuration for the new application in the \`appConfig\` field. Design a beautiful, appropriate theme and a logical component structure.`;
+  
+  const fullPrompt = isRefining
+    ? `Conversation History:\n${history.map(m => `${m.role}: ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`).join('\n')}\n\nCurrent App Config:\n${JSON.stringify(config, null, 2)}\n\nUser's new request: ${prompt}`
+    : prompt;
+
 
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash",
-    contents: prompt,
+    contents: fullPrompt,
     config: {
       systemInstruction: systemInstruction,
       responseMimeType: "application/json",
-      responseSchema: appConfigSchema,
+      responseSchema: generationResultSchema,
     },
   });
 
   try {
     const jsonText = response.text.trim();
-    const config = JSON.parse(jsonText);
-    return config as AppConfig;
+    const newResult = JSON.parse(jsonText);
+    return newResult as GenerationResult;
   } catch (error) {
     console.error("Failed to parse JSON response:", response.text);
     throw new Error("The AI returned an invalid app configuration. Please try again.");
@@ -120,21 +177,20 @@ export const generateAppConfig = async (prompt: string): Promise<AppConfig> => {
 };
 
 export const generateFlutterCode = async (config: AppConfig): Promise<string> => {
-  const systemInstruction = `You are an expert Flutter developer. Your task is to convert a JSON object that describes an application's UI into a single, complete, runnable Flutter code file (\`main.dart\`).
+  const systemInstruction = `You are an expert Flutter developer. Your task is to convert a JSON object that describes an application's UI and theme into a single, complete, runnable Flutter code file (\`main.dart\`).
 - The entire output must be a single block of Dart code. Do not wrap it in markdown.
+- Use the provided \`theme\` object from the JSON to create a custom \`ThemeData\` for the \`MaterialApp\`. Map the theme colors to Flutter's \`ColorScheme\`.
 - Use a \`StatefulWidget\` for the main screen to manage the state of input fields and output content.
 - Map the JSON component types to appropriate Flutter widgets:
-  - \`TITLE\`: \`Text\` widget with a large, bold style (\`Theme.of(context).textTheme.headlineMedium\`).
+  - \`TITLE\`: \`Text\` widget with a large, bold style.
   - \`DESCRIPTION\`: \`Text\` widget with a standard style.
   - \`INPUT_TEXT\`: \`TextField\` widget, properly decorated with labels and placeholders from the JSON. Store its value in a \`TextEditingController\`.
-  - \`BUTTON\`: \`ElevatedButton\` widget. For the \`onPressed\` callback, create a placeholder async function. Inside this function, add a \`// TODO: Implement Gemini API call here\` comment. Do not implement the API call logic.
+  - \`BUTTON\`: \`ElevatedButton\`, \`TextButton\`, or \`OutlinedButton\` based on the \`variant\` property. For the \`onPressed\` callback, create a placeholder async function with a \`// TODO: Implement API call\` comment.
   - \`OUTPUT_TEXT\`: A \`Text\` widget that displays a state variable.
   - \`OUTPUT_IMAGE\`: An \`Image.network\` widget that displays a state variable holding an image URL. Initially, it should be hidden or show a placeholder.
-- The overall layout should be a \`SingleChildScrollView\` containing a \`Column\` with appropriate padding.
+- The overall layout should be a \`SingleChildScrollView\` containing a \`Padding\` widget whose child is a \`Column\`.
 - Ensure the generated code is well-formatted and follows Dart best practices.
-- Add necessary imports like \`package:flutter/material.dart\`.
-- Create a basic \`MaterialApp\` and \`Scaffold\` structure.
-- Do not make assumptions about API calls. The button's action is just a placeholder.`;
+- Add necessary imports like \`package:flutter/material.dart\`.`;
 
   const prompt = `Generate the Flutter code for the following app configuration:\n\n${JSON.stringify(config, null, 2)}`;
 

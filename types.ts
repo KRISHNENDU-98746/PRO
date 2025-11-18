@@ -46,6 +46,7 @@ export interface ButtonComponent extends BaseAppComponent {
   label:string;
   action: ActionType;
   triggers: string[]; // Array of input component IDs
+  variant?: 'primary' | 'secondary' | 'outline';
 }
 
 export interface OutputTextComponent extends BaseAppComponent {
@@ -66,6 +67,18 @@ export type AppComponent =
   | OutputTextComponent
   | OutputImageComponent;
 
+export interface Theme {
+  primaryColor: string;
+  secondaryColor?: string;
+  backgroundColor: string;
+  surfaceColor: string;
+  textColor: string;
+  secondaryTextColor: string;
+  borderRadius: string;
+  fontFamily: string;
+}
+
 export interface AppConfig {
+  theme: Theme;
   components: AppComponent[];
 }
